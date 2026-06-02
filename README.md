@@ -17,7 +17,7 @@ calendar event per prep day into Google Calendar.
 
 ---
 
-## 1. What you need (all free, no credit card)
+## 1. What you need
 
 | Key | Where to get it | Used for |
 |-----|-----------------|----------|
