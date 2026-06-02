@@ -267,7 +267,7 @@
           "buttonLabel": "Build my prep plan"
         }
       },
-      "id": "9b5eb96e-0c11-4f6c-97d6-5413a5ca8201",
+      "id": "a32f03bb-8ccb-44b6-9010-55f0063b9998",
       "name": "Intake Form",
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.2,
@@ -275,13 +275,13 @@
         0,
         300
       ],
-      "webhookId": "9e0fa9fd-0312-43a4-a59f-e0bf8e03220a"
+      "webhookId": "41a6b609-e009-4870-bdc0-afbdaf33f921"
     },
     {
       "parameters": {
         "jsCode": "\n// DETERMINISTIC: validate-by-coercion + map self-assessment to scores + intensity + directive.\nconst f = $input.first().json;\nconst get = (k) => (f[k] !== undefined && f[k] !== null ? f[k] : '');\n\nconst company = String(get('Company')).trim() || 'the company';\nconst role = String(get('Role')).trim() || 'SDE';\nconst recipientEmail = String(get('Your Email')).trim();\n\nlet daysLeft = parseInt(get('Days Until Interview'), 10);\nlet dailyHours = parseFloat(get('Daily Hours You Can Grind'));\nif (!Number.isFinite(daysLeft) || daysLeft < 1) daysLeft = 7;   // safe defaults (no gate node)\nif (daysLeft > 60) daysLeft = 60;\nif (!Number.isFinite(dailyHours) || dailyHours < 0.5) dailyHours = 2;\n\nconst calendarEnabled = String(get('Sync day plan to Google Calendar?')).trim().toLowerCase() === 'yes';\nconst dsaSituation = String(get('Current DSA Situation')).trim();\nconst hrSituation = String(get('Behavioural Round Situation')).trim();\n\nconst toArr = (v) => Array.isArray(v) ? v : (v ? String(v).split(',').map(s => s.trim()).filter(Boolean) : []);\nconst weakTopics = toArr(get('Weak DSA Topics'));\nconst strongTopics = toArr(get('Strong DSA Topics'));\n\nconst dsaScoreMap = {\n  \"I finished DSA once. Memory left the chat.\": 35, \"I'm good. Just need revision.\": 75,\n  \"I know concepts but my coding speed is tragic.\": 55, \"I know DSA until the follow-up question.\": 60,\n  \"I watched Striver. Didn't practice.\": 30, \"I bookmarked everything. Studied nothing.\": 15,\n  \"Never seriously learned DSA.\": 5, \"I'm cracked. Bring the interview.\": 90,\n};\nconst hrScoreMap = {\n  \"Never prepared.\": 10, \"I have stories but they sound boring.\": 45, \"I forget my examples on the spot.\": 35,\n  \"I know STAR but don't STAR.\": 50, \"Need company-specific prep.\": 60,\n  \"Confident, just need to revise.\": 80, \"I fake confidence successfully.\": 55,\n};\nconst readiness = dsaScoreMap[dsaSituation] ?? 40;\nconst hrScore = hrScoreMap[hrSituation] ?? 40;\n\nlet intensity = 'sprint', planningDirective = '';\nif (daysLeft <= 4) { intensity = 'crisis';\n  planningDirective = 'Triage only: highest-frequency patterns and most-asked company questions, daily timed mocks, no new topics.'; }\nelse if (daysLeft >= 15) { intensity = 'marathon';\n  planningDirective = 'Build fundamentals on weak topics early, ramp difficulty, regular mocks in the back third, leave buffer days.'; }\nelse { intensity = 'sprint';\n  planningDirective = 'Cover high-ROI topics first, fix weak areas by frequency, daily mixed practice plus a mock every 2-3 days.'; }\n\nreturn [{ json: {\n  company, role, recipientEmail, daysLeft, dailyHours, calendarEnabled,\n  dsaSituation, hrSituation, readiness, hrScore, weakTopics, strongTopics, intensity, planningDirective,\n}}];\n"
       },
-      "id": "781216e5-4041-4e16-b1d0-ba3c83e861f1",
+      "id": "dc338187-0c30-4a2c-b102-5daee61c0662",
       "name": "Validate and Normalize",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -312,7 +312,7 @@
         "jsonBody": "={{ JSON.stringify({query: $json.company + ' ' + $json.role + ' software engineer interview questions experience rounds process leetcode glassdoor',max_results: 6, search_depth: 'basic', include_answer: true}) }}",
         "options": {}
       },
-      "id": "0a5889b3-4f00-4d9b-b680-7ba0166d66ca",
+      "id": "7786efef-f6b3-45c2-8e16-1dca84780340",
       "name": "Tavily Web Search",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -321,38 +321,6 @@
         300
       ],
       "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-goog-api-key",
-              "value": "={{ $env.GEMINI_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are an Interview Intelligence Analyst. Output ONLY compact JSON. No prose.'}]},contents:[{parts:[{text:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\n\\nWeb research notes:\\n' + (($('Tavily Web Search').first().json.answer||'') + '\\n' + (Array.isArray($('Tavily Web Search').first().json.results)? $('Tavily Web Search').first().json.results.map(r=>'- '+(r.title||'')+': '+String(r.content||'').slice(0,250)).join('\\n'):'')).slice(0,3500) + '\\n\\nReturn ONLY JSON with keys: process_overview (string <=35 words), common_topics (array of <=6 short strings), company_questions (array of <=6 short strings), behavioural_signals (array of <=4 short strings).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:700}}) }}",
-        "options": {}
-      },
-      "id": "59a885e6-758b-4a56-a09e-e755a8e34b03",
-      "name": "Agent 1 - Interview Intelligence",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        720,
-        300
-      ],
-      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -376,28 +344,15 @@
         "jsonBody": "={{ JSON.stringify({model:'llama-3.3-70b-versatile',response_format:{type:'json_object'},temperature:0.4,max_tokens:700,messages:[{role:'system',content:'You are an Interview Intelligence Analyst. Output ONLY compact JSON. No prose.'},{role:'user',content:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\n\\nWeb research notes:\\n' + (($('Tavily Web Search').first().json.answer||'') + '\\n' + (Array.isArray($('Tavily Web Search').first().json.results)? $('Tavily Web Search').first().json.results.map(r=>'- '+(r.title||'')+': '+String(r.content||'').slice(0,250)).join('\\n'):'')).slice(0,3500) + '\\n\\nReturn ONLY JSON with keys: process_overview (string <=35 words), common_topics (array of <=6 short strings), company_questions (array of <=6 short strings), behavioural_signals (array of <=4 short strings).'}]}) }}",
         "options": {}
       },
-      "id": "bc8e574c-93d7-4744-8490-caedef91a8c6",
-      "name": "Fallback Groq - Intelligence",
+      "id": "46265db8-e66f-4d2c-9515-bbb1308a2cb7",
+      "name": "Agent 1 - Interview Intelligence",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         720,
-        520
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\nconst intel = parseJson(text, {\n  process_overview: 'Typical SDE loop: online assessment, 2-4 DSA rounds, and a behavioural round.',\n  common_topics: [], company_questions: [], behavioural_signals: []\n});\nreturn [{ json: { intel } }];\n"
-      },
-      "id": "9abc513f-4e33-4bcc-a688-b605b521e934",
-      "name": "Parse Intelligence",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        960,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -418,18 +373,31 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are a blunt, experienced engineering mentor. Honest, never cruel. Output ONLY JSON.'}]},contents:[{parts:[{text:'Days left: ' + $('Validate and Normalize').first().json.daysLeft + '\\nDaily hours: ' + $('Validate and Normalize').first().json.dailyHours + '\\nDSA readiness (0-100): ' + $('Validate and Normalize').first().json.readiness + '\\nWeak topics: ' + ($('Validate and Normalize').first().json.weakTopics||[]).join(', ') + '\\nStrong topics: ' + ($('Validate and Normalize').first().json.strongTopics||[]).join(', ') + '\\nCommonly asked topics: ' + (($('Parse Intelligence').first().json.intel.common_topics)||[]).join(', ') + '\\n\\nReturn ONLY JSON: reality_check (string honest and constructive <=45 words), high_roi_topics (array <=6 ordered by payoff), skip_topics (array <=4).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:500}}) }}",
+        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are an Interview Intelligence Analyst. Output ONLY compact JSON. No prose.'}]},contents:[{parts:[{text:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\n\\nWeb research notes:\\n' + (($('Tavily Web Search').first().json.answer||'') + '\\n' + (Array.isArray($('Tavily Web Search').first().json.results)? $('Tavily Web Search').first().json.results.map(r=>'- '+(r.title||'')+': '+String(r.content||'').slice(0,250)).join('\\n'):'')).slice(0,3500) + '\\n\\nReturn ONLY JSON with keys: process_overview (string <=35 words), common_topics (array of <=6 short strings), company_questions (array of <=6 short strings), behavioural_signals (array of <=4 short strings).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:700}}) }}",
         "options": {}
       },
-      "id": "46add169-22ff-4224-90ab-02ac97ab51e1",
-      "name": "Agent 2 - Reality Check",
+      "id": "1d34d1d0-49c3-4c30-892d-dbd2ee5beca1",
+      "name": "Fallback Gemini - Intelligence",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
-        300
+        720,
+        520
       ],
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\nconst intel = parseJson(text, {\n  process_overview: 'Typical SDE loop: online assessment, 2-4 DSA rounds, and a behavioural round.',\n  common_topics: [], company_questions: [], behavioural_signals: []\n});\nreturn [{ json: { intel } }];\n"
+      },
+      "id": "6ab6cde2-f3b9-4390-9e7d-3be4d79e4541",
+      "name": "Parse Intelligence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
     },
     {
       "parameters": {
@@ -453,28 +421,15 @@
         "jsonBody": "={{ JSON.stringify({model:'llama-3.3-70b-versatile',response_format:{type:'json_object'},temperature:0.4,max_tokens:500,messages:[{role:'system',content:'You are a blunt, experienced engineering mentor. Honest, never cruel. Output ONLY JSON.'},{role:'user',content:'Days left: ' + $('Validate and Normalize').first().json.daysLeft + '\\nDaily hours: ' + $('Validate and Normalize').first().json.dailyHours + '\\nDSA readiness (0-100): ' + $('Validate and Normalize').first().json.readiness + '\\nWeak topics: ' + ($('Validate and Normalize').first().json.weakTopics||[]).join(', ') + '\\nStrong topics: ' + ($('Validate and Normalize').first().json.strongTopics||[]).join(', ') + '\\nCommonly asked topics: ' + (($('Parse Intelligence').first().json.intel.common_topics)||[]).join(', ') + '\\n\\nReturn ONLY JSON: reality_check (string honest and constructive <=45 words), high_roi_topics (array <=6 ordered by payoff), skip_topics (array <=4).'}]}) }}",
         "options": {}
       },
-      "id": "d1425516-12f4-4c2a-8dc4-f75ae1893f7a",
-      "name": "Fallback Groq - Reality",
+      "id": "c59074ef-fda4-4f7a-8478-0515b897d468",
+      "name": "Agent 2 - Reality Check",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1200,
-        520
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\nconst reality = parseJson(text, {\n  reality_check: 'Time is short. Stop collecting resources and start solving timed problems on your weak topics today.',\n  high_roi_topics: [], skip_topics: []\n});\nreturn [{ json: { reality } }];\n"
-      },
-      "id": "e1e11e40-4f50-44eb-b133-bde9c043bb62",
-      "name": "Parse Reality",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1440,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -495,18 +450,31 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are a focused interview-prep planner. Output ONLY JSON. Respect the day count and hour cap exactly.'}]},contents:[{parts:[{text:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\nDays left: ' + $('Validate and Normalize').first().json.daysLeft + '\\nDaily hours available: ' + $('Validate and Normalize').first().json.dailyHours + '\\nMode: ' + $('Validate and Normalize').first().json.intensity + ' - ' + $('Validate and Normalize').first().json.planningDirective + '\\nHigh-ROI topics: ' + (($('Parse Reality').first().json.reality.high_roi_topics)||[]).join(', ') + '\\nWeak topics: ' + ($('Validate and Normalize').first().json.weakTopics||[]).join(', ') + '\\nMost asked topics: ' + (($('Parse Intelligence').first().json.intel.common_topics)||[]).join(', ') + '\\n\\nReturn ONLY JSON: strategy_rationale (string <=45 words), day_plan (array of EXACTLY ' + $('Validate and Normalize').first().json.daysLeft + ' objects; each {day:int, focus:string <=8 words, tasks:array of <=3 short strings, hours:number <= ' + $('Validate and Normalize').first().json.dailyHours + '}).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:1600}}) }}",
+        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are a blunt, experienced engineering mentor. Honest, never cruel. Output ONLY JSON.'}]},contents:[{parts:[{text:'Days left: ' + $('Validate and Normalize').first().json.daysLeft + '\\nDaily hours: ' + $('Validate and Normalize').first().json.dailyHours + '\\nDSA readiness (0-100): ' + $('Validate and Normalize').first().json.readiness + '\\nWeak topics: ' + ($('Validate and Normalize').first().json.weakTopics||[]).join(', ') + '\\nStrong topics: ' + ($('Validate and Normalize').first().json.strongTopics||[]).join(', ') + '\\nCommonly asked topics: ' + (($('Parse Intelligence').first().json.intel.common_topics)||[]).join(', ') + '\\n\\nReturn ONLY JSON: reality_check (string honest and constructive <=45 words), high_roi_topics (array <=6 ordered by payoff), skip_topics (array <=4).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:500}}) }}",
         "options": {}
       },
-      "id": "a66feb44-5186-4a7c-86e8-a179c1833553",
-      "name": "Agent 3 - Roadmap Planner",
+      "id": "efe39e11-bfd4-48a9-bf6b-83daab80bd21",
+      "name": "Fallback Gemini - Reality",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
-        300
+        1200,
+        520
       ],
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\nconst reality = parseJson(text, {\n  reality_check: 'Time is short. Stop collecting resources and start solving timed problems on your weak topics today.',\n  high_roi_topics: [], skip_topics: []\n});\nreturn [{ json: { reality } }];\n"
+      },
+      "id": "9566ac66-70c8-440e-801d-2b295109bec8",
+      "name": "Parse Reality",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ]
     },
     {
       "parameters": {
@@ -530,28 +498,15 @@
         "jsonBody": "={{ JSON.stringify({model:'llama-3.3-70b-versatile',response_format:{type:'json_object'},temperature:0.4,max_tokens:1600,messages:[{role:'system',content:'You are a focused interview-prep planner. Output ONLY JSON. Respect the day count and hour cap exactly.'},{role:'user',content:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\nDays left: ' + $('Validate and Normalize').first().json.daysLeft + '\\nDaily hours available: ' + $('Validate and Normalize').first().json.dailyHours + '\\nMode: ' + $('Validate and Normalize').first().json.intensity + ' - ' + $('Validate and Normalize').first().json.planningDirective + '\\nHigh-ROI topics: ' + (($('Parse Reality').first().json.reality.high_roi_topics)||[]).join(', ') + '\\nWeak topics: ' + ($('Validate and Normalize').first().json.weakTopics||[]).join(', ') + '\\nMost asked topics: ' + (($('Parse Intelligence').first().json.intel.common_topics)||[]).join(', ') + '\\n\\nReturn ONLY JSON: strategy_rationale (string <=45 words), day_plan (array of EXACTLY ' + $('Validate and Normalize').first().json.daysLeft + ' objects; each {day:int, focus:string <=8 words, tasks:array of <=3 short strings, hours:number <= ' + $('Validate and Normalize').first().json.dailyHours + '}).'}]}) }}",
         "options": {}
       },
-      "id": "66270f20-3dcb-4ece-b849-ce611ba58fe5",
-      "name": "Fallback Groq - Planner",
+      "id": "689b1a50-7a28-48aa-b002-f98ddc17e369",
+      "name": "Agent 3 - Roadmap Planner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1680,
-        520
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\n// DETERMINISTIC: force the schema the planner was told to produce.\nconst plan = parseJson(text, {});\nconst norm = $('Validate and Normalize').first().json;\nconst days = norm.daysLeft, maxH = norm.dailyHours;\nlet dayPlan = Array.isArray(plan.day_plan) ? plan.day_plan : [];\ndayPlan = dayPlan.slice(0, days).map((d, i) => ({\n  day: i + 1,\n  focus: String((d && d.focus) || 'Mixed practice').slice(0, 80),\n  tasks: Array.isArray(d && d.tasks) ? d.tasks.slice(0, 3).map(t => String(t).slice(0, 120)) : ['Solve 4-6 problems','Review mistakes'],\n  hours: Math.min(Number(d && d.hours) || maxH, maxH),\n}));\nwhile (dayPlan.length < days) {\n  const i = dayPlan.length;\n  dayPlan.push({ day: i + 1, focus: 'Buffer: revision and mock', tasks: ['Revise weak topics','1 timed mock','Review mistakes'], hours: maxH });\n}\nreturn [{ json: {\n  strategy_rationale: String(plan.strategy_rationale || 'Front-loads the highest-frequency topics so even partial completion maximizes expected score.').slice(0, 400),\n  day_plan: dayPlan, planned_days: dayPlan.length\n}}];\n"
-      },
-      "id": "aecb021e-70d4-4d96-8646-ab68301858ea",
-      "name": "Validate and Repair Roadmap",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1920,
         300
-      ]
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -572,18 +527,31 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are a behavioural interview coach. Output ONLY JSON.'}]},contents:[{parts:[{text:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\nBehavioural readiness (0-100): ' + $('Validate and Normalize').first().json.hrScore + '\\n\\nReturn ONLY JSON: framework_tip (string <=30 words), company_values (array <=5), practice_questions (array <=5), sample_story_outline (string <=55 words STAR skeleton).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:600}}) }}",
+        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are a focused interview-prep planner. Output ONLY JSON. Respect the day count and hour cap exactly.'}]},contents:[{parts:[{text:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\nDays left: ' + $('Validate and Normalize').first().json.daysLeft + '\\nDaily hours available: ' + $('Validate and Normalize').first().json.dailyHours + '\\nMode: ' + $('Validate and Normalize').first().json.intensity + ' - ' + $('Validate and Normalize').first().json.planningDirective + '\\nHigh-ROI topics: ' + (($('Parse Reality').first().json.reality.high_roi_topics)||[]).join(', ') + '\\nWeak topics: ' + ($('Validate and Normalize').first().json.weakTopics||[]).join(', ') + '\\nMost asked topics: ' + (($('Parse Intelligence').first().json.intel.common_topics)||[]).join(', ') + '\\n\\nReturn ONLY JSON: strategy_rationale (string <=45 words), day_plan (array of EXACTLY ' + $('Validate and Normalize').first().json.daysLeft + ' objects; each {day:int, focus:string <=8 words, tasks:array of <=3 short strings, hours:number <= ' + $('Validate and Normalize').first().json.dailyHours + '}).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:1600}}) }}",
         "options": {}
       },
-      "id": "46355d7d-e296-4b9e-bc27-d3317b34b9dc",
-      "name": "Agent 4 - Behavioural Prep",
+      "id": "5f49065f-afc6-47a6-ad13-2522128efffb",
+      "name": "Fallback Gemini - Planner",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2160,
-        300
+        1680,
+        520
       ],
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\n// DETERMINISTIC: force the schema the planner was told to produce.\nconst plan = parseJson(text, {});\nconst norm = $('Validate and Normalize').first().json;\nconst days = norm.daysLeft, maxH = norm.dailyHours;\nlet dayPlan = Array.isArray(plan.day_plan) ? plan.day_plan : [];\ndayPlan = dayPlan.slice(0, days).map((d, i) => ({\n  day: i + 1,\n  focus: String((d && d.focus) || 'Mixed practice').slice(0, 80),\n  tasks: Array.isArray(d && d.tasks) ? d.tasks.slice(0, 3).map(t => String(t).slice(0, 120)) : ['Solve 4-6 problems','Review mistakes'],\n  hours: Math.min(Number(d && d.hours) || maxH, maxH),\n}));\nwhile (dayPlan.length < days) {\n  const i = dayPlan.length;\n  dayPlan.push({ day: i + 1, focus: 'Buffer: revision and mock', tasks: ['Revise weak topics','1 timed mock','Review mistakes'], hours: maxH });\n}\nreturn [{ json: {\n  strategy_rationale: String(plan.strategy_rationale || 'Front-loads the highest-frequency topics so even partial completion maximizes expected score.').slice(0, 400),\n  day_plan: dayPlan, planned_days: dayPlan.length\n}}];\n"
+      },
+      "id": "30683d5a-e8be-4104-8acd-296014df6da1",
+      "name": "Validate and Repair Roadmap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        300
+      ]
     },
     {
       "parameters": {
@@ -607,8 +575,40 @@
         "jsonBody": "={{ JSON.stringify({model:'llama-3.3-70b-versatile',response_format:{type:'json_object'},temperature:0.4,max_tokens:600,messages:[{role:'system',content:'You are a behavioural interview coach. Output ONLY JSON.'},{role:'user',content:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\nBehavioural readiness (0-100): ' + $('Validate and Normalize').first().json.hrScore + '\\n\\nReturn ONLY JSON: framework_tip (string <=30 words), company_values (array <=5), practice_questions (array <=5), sample_story_outline (string <=55 words STAR skeleton).'}]}) }}",
         "options": {}
       },
-      "id": "e11e7d8a-2bb2-4e65-bae6-a29c0d41ba08",
-      "name": "Fallback Groq - Behavioural",
+      "id": "a31b1f6b-dca2-4e24-9e0a-775d292ea88c",
+      "name": "Agent 4 - Behavioural Prep",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({systemInstruction:{parts:[{text:'You are a behavioural interview coach. Output ONLY JSON.'}]},contents:[{parts:[{text:'Company: ' + $('Validate and Normalize').first().json.company + '\\nRole: ' + $('Validate and Normalize').first().json.role + '\\nBehavioural readiness (0-100): ' + $('Validate and Normalize').first().json.hrScore + '\\n\\nReturn ONLY JSON: framework_tip (string <=30 words), company_values (array <=5), practice_questions (array <=5), sample_story_outline (string <=55 words STAR skeleton).'}]}],generationConfig:{responseMimeType:'application/json',temperature:0.4,maxOutputTokens:600}}) }}",
+        "options": {}
+      },
+      "id": "8fa3888b-a2dc-4891-a3da-49f0f38c4632",
+      "name": "Fallback Gemini - Behavioural",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -621,7 +621,7 @@
       "parameters": {
         "jsCode": "\n// DETERMINISTIC: read Gemini OR Groq response, parse JSON, fall back to defaults.\nconst item = $input.first().json || {};\nlet text = item?.candidates?.[0]?.content?.parts?.[0]?.text\n        || item?.choices?.[0]?.message?.content\n        || '';\nfunction parseJson(t, fb){\n  if (!t) return fb;\n  try { return JSON.parse(t); } catch(e){}\n  const m = t.match(/\\{[\\s\\S]*\\}/);\n  if (m){ try { return JSON.parse(m[0]); } catch(e){} }\n  return fb;\n}\n\nconst behavioural = parseJson(text, {\n  framework_tip: 'Use STAR: Situation, Task, Action, Result. Lead with impact and quantify the result.',\n  company_values: [], practice_questions: [], sample_story_outline: ''\n});\nreturn [{ json: { behavioural } }];\n"
       },
-      "id": "686c354f-e4a3-4405-9cec-ac498157b30a",
+      "id": "bf1d7dcb-4f3d-4299-8dd0-b9e0e4b9174b",
       "name": "Parse Behavioural",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -632,9 +632,9 @@
     },
     {
       "parameters": {
-        "jsCode": "\n// DETERMINISTIC: stitch all agent outputs into a styled HTML email.\nconst norm = $('Validate and Normalize').first().json;\nconst intel = ($('Parse Intelligence').first().json.intel) || {};\nconst reality = ($('Parse Reality').first().json.reality) || {};\nconst road = $('Validate and Repair Roadmap').first().json || {};\nconst beh = ($('Parse Behavioural').first().json.behavioural) || {};\n\nconst esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst ul = (arr) => (Array.isArray(arr) && arr.length)\n  ? '<ul style=\"margin:6px 0 0;padding-left:20px\">' + arr.map(x => '<li style=\"margin:2px 0\">' + esc(x) + '</li>').join('') + '</ul>'\n  : '<p style=\"margin:6px 0 0;color:#888\">None provided.</p>';\n\nconst rows = (road.day_plan || []).map(d =>\n  '<tr>' +\n  '<td style=\"padding:8px 10px;border-bottom:1px solid #eee;font-weight:600;white-space:nowrap;vertical-align:top\">Day ' + d.day + '</td>' +\n  '<td style=\"padding:8px 10px;border-bottom:1px solid #eee\">' + esc(d.focus) +\n    '<div style=\"color:#555;font-size:13px;margin-top:4px\">' + (d.tasks || []).map(esc).join(' &bull; ') + '</div></td>' +\n  '<td style=\"padding:8px 10px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;vertical-align:top\">' + d.hours + ' h</td>' +\n  '</tr>'\n).join('');\n\nconst section = (title, body) =>\n  '<h2 style=\"font-size:16px;margin:24px 0 4px;color:#111;border-bottom:2px solid #f0f0f0;padding-bottom:4px\">' + title + '</h2>' + body;\n\nconst reportHtml =\n'<div style=\"font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;color:#222;line-height:1.5\">' +\n  '<div style=\"background:#0f172a;color:#fff;padding:20px 24px;border-radius:10px 10px 0 0\">' +\n    '<div style=\"font-size:20px;font-weight:700\">Interview Prep Plan</div>' +\n    '<div style=\"opacity:.88;margin-top:4px\">' + esc(norm.company) + ' &middot; ' + esc(norm.role) + '</div>' +\n    '<div style=\"opacity:.7;font-size:13px;margin-top:8px\">' + norm.daysLeft + ' days left &middot; ' + norm.dailyHours + ' h/day &middot; ' + esc(norm.intensity) + ' mode</div>' +\n  '</div>' +\n  '<div style=\"border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:8px 24px 24px\">' +\n    section('1. Interview Intelligence', '<p style=\"margin:6px 0 0\">' + esc(intel.process_overview) + '</p><p style=\"margin:12px 0 0;font-weight:600\">Commonly tested topics</p>' + ul(intel.common_topics)) +\n    section('2. Reality Check', '<blockquote style=\"margin:8px 0 0;padding:10px 14px;background:#fff7ed;border-left:4px solid #fb923c;border-radius:4px\">' + esc(reality.reality_check) + '</blockquote>') +\n    section('3. Why this plan exists', '<p style=\"margin:6px 0 0\">' + esc(road.strategy_rationale) + '</p>') +\n    section('4. High-ROI topics', ul(reality.high_roi_topics) + '<p style=\"margin:12px 0 0;font-weight:600\">Safe to deprioritise</p>' + ul(reality.skip_topics)) +\n    section('5. Company-specific questions', ul(intel.company_questions)) +\n    section('6. Day-by-Day Roadmap', '<table style=\"width:100%;border-collapse:collapse;margin-top:8px;font-size:14px\"><tbody>' + rows + '</tbody></table>') +\n    section('7. Behavioural / HR Prep', '<p style=\"margin:6px 0 0;font-style:italic\">' + esc(beh.framework_tip) + '</p>' +\n      '<p style=\"margin:12px 0 0;font-weight:600\">Values screened for</p>' + ul(beh.company_values) +\n      '<p style=\"margin:12px 0 0;font-weight:600\">Practice questions</p>' + ul(beh.practice_questions) +\n      '<p style=\"margin:12px 0 0;font-weight:600\">STAR story skeleton</p><p style=\"margin:6px 0 0\">' + esc(beh.sample_story_outline) + '</p>') +\n    section('8. Final Note', '<p style=\"margin:6px 0 0\">You have ' + norm.daysLeft + ' days and a concrete plan. Solve out loud, ask clarifying questions, and keep moving. Good luck.</p>') +\n    '<p style=\"margin:24px 0 0;font-size:12px;color:#999\">Generated automatically via Tavily web search and Gemini (Groq fallback).</p>' +\n  '</div>' +\n'</div>';\n\nreturn [{ json: { reportHtml, company: norm.company, recipientEmail: norm.recipientEmail } }];\n"
+        "jsCode": "\n// DETERMINISTIC: stitch all agent outputs into a styled HTML email.\nconst norm = $('Validate and Normalize').first().json;\nconst intel = ($('Parse Intelligence').first().json.intel) || {};\nconst reality = ($('Parse Reality').first().json.reality) || {};\nconst road = $('Validate and Repair Roadmap').first().json || {};\nconst beh = ($('Parse Behavioural').first().json.behavioural) || {};\n\nconst esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst ul = (arr) => (Array.isArray(arr) && arr.length)\n  ? '<ul style=\"margin:6px 0 0;padding-left:20px\">' + arr.map(x => '<li style=\"margin:2px 0\">' + esc(x) + '</li>').join('') + '</ul>'\n  : '<p style=\"margin:6px 0 0;color:#888\">None provided.</p>';\n\nconst rows = (road.day_plan || []).map(d =>\n  '<tr>' +\n  '<td style=\"padding:8px 10px;border-bottom:1px solid #eee;font-weight:600;white-space:nowrap;vertical-align:top\">Day ' + d.day + '</td>' +\n  '<td style=\"padding:8px 10px;border-bottom:1px solid #eee\">' + esc(d.focus) +\n    '<div style=\"color:#555;font-size:13px;margin-top:4px\">' + (d.tasks || []).map(esc).join(' &bull; ') + '</div></td>' +\n  '<td style=\"padding:8px 10px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;vertical-align:top\">' + d.hours + ' h</td>' +\n  '</tr>'\n).join('');\n\nconst section = (title, body) =>\n  '<h2 style=\"font-size:16px;margin:24px 0 4px;color:#111;border-bottom:2px solid #f0f0f0;padding-bottom:4px\">' + title + '</h2>' + body;\n\nconst reportHtml =\n'<div style=\"font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;color:#222;line-height:1.5\">' +\n  '<div style=\"background:#0f172a;color:#fff;padding:20px 24px;border-radius:10px 10px 0 0\">' +\n    '<div style=\"font-size:20px;font-weight:700\">Interview Prep Plan</div>' +\n    '<div style=\"opacity:.88;margin-top:4px\">' + esc(norm.company) + ' &middot; ' + esc(norm.role) + '</div>' +\n    '<div style=\"opacity:.7;font-size:13px;margin-top:8px\">' + norm.daysLeft + ' days left &middot; ' + norm.dailyHours + ' h/day &middot; ' + esc(norm.intensity) + ' mode</div>' +\n  '</div>' +\n  '<div style=\"border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;padding:8px 24px 24px\">' +\n    section('1. Interview Intelligence', '<p style=\"margin:6px 0 0\">' + esc(intel.process_overview) + '</p><p style=\"margin:12px 0 0;font-weight:600\">Commonly tested topics</p>' + ul(intel.common_topics)) +\n    section('2. Reality Check', '<blockquote style=\"margin:8px 0 0;padding:10px 14px;background:#fff7ed;border-left:4px solid #fb923c;border-radius:4px\">' + esc(reality.reality_check) + '</blockquote>') +\n    section('3. Why this plan exists', '<p style=\"margin:6px 0 0\">' + esc(road.strategy_rationale) + '</p>') +\n    section('4. High-ROI topics', ul(reality.high_roi_topics) + '<p style=\"margin:12px 0 0;font-weight:600\">Safe to deprioritise</p>' + ul(reality.skip_topics)) +\n    section('5. Company-specific questions', ul(intel.company_questions)) +\n    section('6. Day-by-Day Roadmap', '<table style=\"width:100%;border-collapse:collapse;margin-top:8px;font-size:14px\"><tbody>' + rows + '</tbody></table>') +\n    section('7. Behavioural / HR Prep', '<p style=\"margin:6px 0 0;font-style:italic\">' + esc(beh.framework_tip) + '</p>' +\n      '<p style=\"margin:12px 0 0;font-weight:600\">Values screened for</p>' + ul(beh.company_values) +\n      '<p style=\"margin:12px 0 0;font-weight:600\">Practice questions</p>' + ul(beh.practice_questions) +\n      '<p style=\"margin:12px 0 0;font-weight:600\">STAR story skeleton</p><p style=\"margin:6px 0 0\">' + esc(beh.sample_story_outline) + '</p>') +\n    section('8. Final Note', '<p style=\"margin:6px 0 0\">You have ' + norm.daysLeft + ' days and a concrete plan. Solve out loud, ask clarifying questions, and keep moving. Good luck.</p>') +\n    '<p style=\"margin:24px 0 0;font-size:12px;color:#999\">Generated automatically via Tavily web search and Groq (Gemini fallback).</p>' +\n  '</div>' +\n'</div>';\n\nreturn [{ json: { reportHtml, company: norm.company, recipientEmail: norm.recipientEmail } }];\n"
       },
-      "id": "dc0552a6-2a2d-4fb7-a5fc-e6dd18526948",
+      "id": "f7a8f0f8-58a2-4ad1-a468-32ab48cf1503",
       "name": "Assemble Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -652,7 +652,7 @@
         "html": "={{ $json.reportHtml }}",
         "options": {}
       },
-      "id": "86495ea6-7e6d-4d1a-ac0d-258e5ec274d2",
+      "id": "bc92e072-656a-43fd-ba2d-3f0bf47d0e71",
       "name": "Send Email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
@@ -672,7 +672,7 @@
           },
           "conditions": [
             {
-              "id": "07720f24-395a-4ab1-a81e-00e3bd851c8f",
+              "id": "fad456dc-7843-47d1-918a-6c040e9e4d49",
               "leftValue": "={{ $('Validate and Normalize').first().json.calendarEnabled }}",
               "rightValue": "",
               "operator": {
@@ -685,7 +685,7 @@
           "combinator": "and"
         }
       },
-      "id": "36ac65d3-8c56-48b5-a6dd-7763b11e5402",
+      "id": "561e53ae-ad9f-482b-876b-0628864cd7ad",
       "name": "Calendar Enabled?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -698,7 +698,7 @@
       "parameters": {
         "jsCode": "\n// DETERMINISTIC: turn the day_plan into one calendar event per day (timed 18:00 reminder).\nconst plan = $('Validate and Repair Roadmap').first().json || {};\nconst days = plan.day_plan || [];\nconst out = days.map((d) => {\n  const start = new Date(); start.setHours(18, 0, 0, 0); start.setDate(start.getDate() + (d.day - 1));\n  const end = new Date(start); end.setHours(start.getHours() + 1);\n  return { json: {\n    summary: 'Prep Day ' + d.day + ': ' + d.focus,\n    description: (d.tasks || []).map(t => '- ' + t).join('\\n') + '\\nPlanned hours: ' + d.hours,\n    start: start.toISOString(),\n    end: end.toISOString(),\n  }};\n});\nreturn out.length ? out : [{ json: { skip: true } }];\n"
       },
-      "id": "a9ae7c54-f05e-4e67-adf1-982db0536610",
+      "id": "7b796f8b-d7f4-4f5f-90a9-e5c77ea8cee8",
       "name": "Build Calendar Events",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -722,7 +722,7 @@
           "description": "={{ $json.description }}"
         }
       },
-      "id": "f843d03a-2f17-4fc1-b408-d326b72412ad",
+      "id": "d8c87ee4-0772-4baf-b01e-9dfda9d075c6",
       "name": "Google Calendar - Create Events",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
@@ -739,7 +739,7 @@
         "completionMessage": "=Your interview prep plan has been emailed to {{ $('Validate and Normalize').first().json.recipientEmail }}.",
         "options": {}
       },
-      "id": "b0df8c8a-a2a8-411d-86a5-011763487ac5",
+      "id": "7f8e70ee-1648-4105-b30f-8dd16e9f43fa",
       "name": "Done",
       "type": "n8n-nodes-base.form",
       "typeVersion": 1,
@@ -747,7 +747,7 @@
         3600,
         420
       ],
-      "webhookId": "96887255-ee28-4ad4-81ca-a2aa4d79ef2b"
+      "webhookId": "c4ba3121-75ba-40cc-a49a-58227c1d7b55"
     }
   ],
   "connections": {
@@ -795,14 +795,14 @@
         ],
         [
           {
-            "node": "Fallback Groq - Intelligence",
+            "node": "Fallback Gemini - Intelligence",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fallback Groq - Intelligence": {
+    "Fallback Gemini - Intelligence": {
       "main": [
         [
           {
@@ -835,14 +835,14 @@
         ],
         [
           {
-            "node": "Fallback Groq - Reality",
+            "node": "Fallback Gemini - Reality",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fallback Groq - Reality": {
+    "Fallback Gemini - Reality": {
       "main": [
         [
           {
@@ -875,14 +875,14 @@
         ],
         [
           {
-            "node": "Fallback Groq - Planner",
+            "node": "Fallback Gemini - Planner",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fallback Groq - Planner": {
+    "Fallback Gemini - Planner": {
       "main": [
         [
           {
@@ -915,14 +915,14 @@
         ],
         [
           {
-            "node": "Fallback Groq - Behavioural",
+            "node": "Fallback Gemini - Behavioural",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fallback Groq - Behavioural": {
+    "Fallback Gemini - Behavioural": {
       "main": [
         [
           {
