@@ -8,8 +8,9 @@ It web-searches real interview experiences, runs four role-scoped AI agents
 with deterministic code, and emails the result. Optionally it also drops one
 calendar event per prep day into Google Calendar.
 
-- **AI** (Gemini 2.5 Flash, with a Groq fallback on every step) does the judgement:
-  summarising research, diagnosing readiness, drafting the plan, coaching behaviour.
+- **AI** (Groq llama-3.3-70b, with a Gemini 2.5 Flash fallback on every step) does
+  the judgement: summarising research, diagnosing readiness, drafting the plan,
+  coaching behaviour.
 - **Deterministic code** does everything that must be reliable: scoring inputs,
   choosing prep intensity, repairing the plan to the exact day/hour limits, and
   building the email + calendar events.
@@ -20,8 +21,8 @@ calendar event per prep day into Google Calendar.
 
 | Key | Where to get it | Used for |
 |-----|-----------------|----------|
-| `GEMINI_API_KEY` | https://aistudio.google.com/apikey | Primary LLM (gemini-2.5-flash) |
-| `GROQ_API_KEY`   | https://console.groq.com/keys     | Fallback LLM (llama-3.3-70b) |
+| `GROQ_API_KEY`   | https://console.groq.com/keys     | Primary LLM (llama-3.3-70b) |
+| `GEMINI_API_KEY` | https://aistudio.google.com/apikey | Fallback LLM (gemini-2.5-flash) |
 | `TAVILY_API_KEY` | https://app.tavily.com            | Web search |
 | SMTP login       | your email provider (Gmail works) | Sending the report email |
 
@@ -108,34 +109,18 @@ the Production URL.
 Intake Form
   -> Validate and Normalize            (deterministic: scores, intensity, safe defaults)
   -> Tavily Web Search                 (tool: real interview experiences)
-  -> Agent 1 Interview Intelligence    (Gemini)  --on error--> Fallback Groq --> Parse Intelligence
-  -> Agent 2 Reality Check             (Gemini)  --on error--> Fallback Groq --> Parse Reality
-  -> Agent 3 Roadmap Planner           (Gemini)  --on error--> Fallback Groq --> Validate and Repair Roadmap
-  -> Agent 4 Behavioural Prep          (Gemini)  --on error--> Fallback Groq --> Parse Behavioural
+  -> Agent 1 Interview Intelligence    (Groq)  --on error--> Fallback Gemini --> Parse Intelligence
+  -> Agent 2 Reality Check             (Groq)  --on error--> Fallback Gemini --> Parse Reality
+  -> Agent 3 Roadmap Planner           (Groq)  --on error--> Fallback Gemini --> Validate and Repair Roadmap
+  -> Agent 4 Behavioural Prep          (Groq)  --on error--> Fallback Gemini --> Parse Behavioural
   -> Assemble Report                   (deterministic: builds the HTML email)
   -> Send Email                        (emails the report)
   -> Calendar Enabled?  --No--> Done
                         --Yes--> Build Calendar Events -> Google Calendar -> Done
 ```
 
-Every Gemini node has a Groq fallback wired to its error output, so a Gemini
-rate-limit or outage degrades to Groq instead of failing the run. If both fail,
+Every Groq node has a Gemini fallback wired to its error output, so a Groq
+rate-limit or outage degrades to Gemini instead of failing the run. If both fail,
 the Parse nodes substitute safe defaults so the email still sends.
 
 See `docs/architecture.md` and `docs/workflow-explanation.md` for the per-node "why".
-
----
-
-## 7. Troubleshooting
-
-- **Email didn't arrive**: check the **Send Email** node's execution; most often the
-  SMTP credential is missing or the Gmail App Password is wrong. Also check spam.
-- **Generic-looking report content**: means both Gemini and Groq calls failed and
-  defaults were used — check `GEMINI_API_KEY` / `GROQ_API_KEY` in `.env`, then
-  `docker compose restart`.
-- **`$env.XXX` is empty in a node**: confirm `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`
-  (already set in `docker-compose.yml`) and that you ran `docker compose up -d`
-  *after* filling `.env`.
-- **Calendar errored**: you picked **Yes** without the Google credential. Either add
-  it (step 4b) or pick **No**. The node is set to continue-on-error so it won't kill
-  the run regardless.
